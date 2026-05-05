@@ -22,7 +22,6 @@ NUMERIC_COLS = [
     "height_in_cm",
     "international_caps",
     "international_goals",
-    "highest_market_value_in_eur",
     "goals",
     "assists",
     "minutes_played",
@@ -30,7 +29,7 @@ NUMERIC_COLS = [
     "red_cards",
 ]
 
-TARGET = "market_value_in_eur"
+TARGET = "highest_market_value_in_eur"
 
 
 def _load_players() -> pd.DataFrame:
@@ -57,15 +56,13 @@ def _build_features(players: pd.DataFrame, appearances: pd.DataFrame) -> pd.Data
 
     keep = CATEGORICAL_COLS + NUMERIC_COLS + [TARGET]
     df = df[keep].copy()
+    df = df.dropna(subset=[TARGET])
 
     df[["goals", "assists", "minutes_played", "yellow_cards", "red_cards"]] = (
         df[["goals", "assists", "minutes_played", "yellow_cards", "red_cards"]].fillna(0)
     )
     df[["international_caps", "international_goals"]] = (
         df[["international_caps", "international_goals"]].fillna(0)
-    )
-    df["highest_market_value_in_eur"] = df["highest_market_value_in_eur"].fillna(
-        df["highest_market_value_in_eur"].median()
     )
     df["height_in_cm"] = df["height_in_cm"].fillna(df["height_in_cm"].median())
     df["age"] = df["age"].fillna(df["age"].median())
@@ -75,7 +72,6 @@ def _build_features(players: pd.DataFrame, appearances: pd.DataFrame) -> pd.Data
         le = LabelEncoder()
         df[col] = le.fit_transform(df[col].astype(str))
 
-    df = df.dropna(subset=[TARGET])
     return df
 
 
