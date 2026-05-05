@@ -1,0 +1,4 @@
+model_key,model_name,model_path,mae_eur,rmse_eur,r2
+decision_tree,Decision Tree,/Users/PersonalMM/ml-poc-project/models/decision_tree.joblib,2205367.718872792,6731848.528183914,0.5467908252611678
+random_forest,Random Forest,/Users/PersonalMM/ml-poc-project/models/random_forest.joblib,1893084.080831776,5733880.042215571,0.6712034681261483
+xgboost_regressor,XGBoost Regressor,/Users/PersonalMM/ml-poc-project/models/xgboost_regressor.joblib,1789689.3151705486,5233762.556475695,0.7260583584514255

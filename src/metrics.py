@@ -1,28 +1,20 @@
-"""Student-owned metrics contract.
-
-Students must implement ``compute_metrics`` to return the evaluation metrics
-that matter for their project.
-"""
+"""Regression metrics for peak player market value prediction."""
 
 from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
+from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+
 
 def compute_metrics(y_true: Any, y_pred: Any) -> dict[str, float]:
-    """Return the metrics used to compare model performance.
+    """Return comparable regression metrics for all trained models."""
 
-    Expected return value:
-        A dictionary mapping metric names to numeric values, for example:
-        ``{"accuracy": 0.91, "f1": 0.88}``.
+    clean_predictions = np.maximum(np.asarray(y_pred, dtype=float), 0)
 
-    Constraints:
-    - Every value must be numeric and convertible to ``float``.
-    - Use the same metric set for every model so results remain comparable.
-    - Keep metric names stable because they are written to
-      ``results/model_metrics.csv``.
-    """
-
-    raise NotImplementedError(
-        "Implement metrics.compute_metrics() before running scripts/main.py."
-    )
+    return {
+        "mae_eur": float(mean_absolute_error(y_true, clean_predictions)),
+        "rmse_eur": float(np.sqrt(mean_squared_error(y_true, clean_predictions))),
+        "r2": float(r2_score(y_true, clean_predictions)),
+    }

@@ -30,12 +30,20 @@ MODEL_METRICS_FILE = RESULTS_DIR / "model_metrics.csv"
 STREAMLIT_HOST = "localhost"
 STREAMLIT_PORT = 8501
 
-# Students must replace this example with their trained models.
-# Each entry must point to a serialized model saved as `.joblib`, `.pkl`, or `.pickle`.
 MODELS = {
-    "model_a": {
-        "name": "Model A",
-        "description": "A simple baseline model.",
-        "path": MODELS_DIR / "model_a.pkl",
+    "decision_tree": {
+        "name": "Decision Tree",
+        "description": "Single tree baseline trained on a log transformed peak value target.",
+        "path": MODELS_DIR / "decision_tree.joblib",
+    },
+    "random_forest": {
+        "name": "Random Forest",
+        "description": "Tree ensemble trained to capture non linear player value patterns.",
+        "path": MODELS_DIR / "random_forest.joblib",
+    },
+    "xgboost_regressor": {
+        "name": "XGBoost Regressor",
+        "description": "Gradient boosted tree model trained for peak market value prediction.",
+        "path": MODELS_DIR / "xgboost_regressor.joblib",
     },
 }
