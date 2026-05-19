@@ -1,4 +1,5 @@
 model_key,model_name,model_path,mae_eur,rmse_eur,r2
-decision_tree,Decision Tree,/Users/PersonalMM/ml-poc-project/models/decision_tree.joblib,2209659.347422237,6741575.628323051,0.5454801611999328
-random_forest,Random Forest,/Users/PersonalMM/ml-poc-project/models/random_forest.joblib,1894781.6121726278,5739440.223438381,0.6705654866258021
-xgboost_regressor,XGBoost Regressor,/Users/PersonalMM/ml-poc-project/models/xgboost_regressor.joblib,1790334.427405286,5240339.7035600515,0.7253694137158146
+decision_tree,Decision Tree,/Users/PersonalMM/ml-poc-project/models/decision_tree.joblib,1992481.578884361,5972139.82846489,0.6433108020870795
+random_forest,Random Forest,/Users/PersonalMM/ml-poc-project/models/random_forest.joblib,1729080.5554960424,5332279.960624693,0.715648248029852
+xgboost_regressor,XGBoost Regressor,/Users/PersonalMM/ml-poc-project/models/xgboost_regressor.joblib,1634142.9810238697,4906635.790381775,0.7592326088458247
+catboost_regressor,CatBoost Regressor,/Users/PersonalMM/ml-poc-project/models/catboost_regressor.joblib,1528693.345320671,4490228.913102564,0.7983645047630483

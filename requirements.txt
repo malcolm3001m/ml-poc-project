@@ -15,4 +15,5 @@ scipy
 seaborn
 statsmodels
 streamlit
+streamlit-folium
 xgboost

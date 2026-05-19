@@ -46,4 +46,11 @@ MODELS = {
         "description": "Gradient-boosted trees; log1p-transformed target via TransformedTargetRegressor.",
         "path": MODELS_DIR / "xgboost_regressor.joblib",
     },
+    "catboost_regressor": {
+        "name": "CatBoost Regressor",
+        "description": "Gradient boosting with NATIVE categorical handling (no label-encoding hack). "
+                       "Manual log1p wrap because sklearn's TransformedTargetRegressor cannot clone "
+                       "CatBoost. Winner of scripts/experiment.py.",
+        "path": MODELS_DIR / "catboost_regressor.joblib",
+    },
 }

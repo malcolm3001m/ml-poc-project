@@ -38,6 +38,7 @@ from data import (  # noqa: E402
     _load_players,
     load_dataset_split,
 )
+from model_io import CatBoostLogWrapper  # noqa: E402
 
 RESULTS = ROOT / "results"
 RESULTS.mkdir(exist_ok=True)
@@ -60,8 +61,8 @@ def _metrics(y_true, y_pred):
     }
 
 
-def _build_models():
-    """Same hyperparameters as notebooks/02_model_training.ipynb."""
+def _build_models(cat_indices=None):
+    """Same hyperparameters as scripts/retrain_v2.py — keeps validate.py honest."""
     return {
         "decision_tree": _log_target(
             DecisionTreeRegressor(max_depth=10, min_samples_leaf=20, random_state=42)
@@ -79,7 +80,12 @@ def _build_models():
                 random_state=42, n_jobs=-1, tree_method="hist",
             )
         ),
+        "catboost_regressor": CatBoostLogWrapper(cat_indices=cat_indices),
     }
+
+
+def _cat_indices(columns):
+    return [list(columns).index(c) for c in CATEGORICAL_COLS]
 
 
 # ---------- Main routines ----------
@@ -87,7 +93,7 @@ def _build_models():
 def overfit_and_test(X_train, X_test, y_train, y_test) -> list[dict]:
     """Train each model, score on train + test, return overfit gap."""
     rows = []
-    for key, model in _build_models().items():
+    for key, model in _build_models(_cat_indices(X_train.columns)).items():
         model.fit(X_train, y_train)
         train_m = _metrics(y_train, model.predict(X_train))
         test_m = _metrics(y_test, model.predict(X_test))
@@ -106,8 +112,11 @@ def cross_validate(X, y) -> list[dict]:
     """5-fold CV R² for each model — measures stability."""
     cv = KFold(n_splits=5, shuffle=True, random_state=42)
     rows = []
-    for key, model in _build_models().items():
-        scores = cross_val_score(model, X, y, cv=cv, scoring="r2", n_jobs=-1)
+    # CatBoost can't be parallelised across CV folds with n_jobs=-1 (model state
+    # gets shared incorrectly). Use n_jobs=1 for CatBoost, parallel for the rest.
+    for key, model in _build_models(_cat_indices(X.columns)).items():
+        nj = 1 if key == "catboost_regressor" else -1
+        scores = cross_val_score(model, X, y, cv=cv, scoring="r2", n_jobs=nj)
         rows.append({
             "model": key,
             "cv_r2_mean": float(scores.mean()),

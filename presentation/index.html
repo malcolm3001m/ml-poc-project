@@ -1,0 +1,567 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Valeur d'apogée · Preuve de concept ML · Malcolm Morgan</title>
+<meta name="description" content="DAT0424 PoC ML — prédire la valeur de marché à l'apogée des joueurs de football à partir de données biographiques et de performance. CatBoost, R² 0.798." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<!-- Custom cursor — lerp + magnetic state -->
+<div id="cursor-ring" aria-hidden="true"></div>
+<div id="cursor-dot" aria-hidden="true"></div>
+
+<!-- Canvas spotlight overlay (hero only) -->
+<canvas id="spotlight" aria-hidden="true"></canvas>
+
+<!-- Scroll-driven SVG path background (pattern scroll-animations/001)
+     6 base paths × 3 parallel tracks each = 18 visible dashed bundles.
+     `<use>` elements share each path's geometry; tiny translate offsets
+     create the "bundle of three lines" appearance. -->
+<svg id="scroll-paths" aria-hidden="true" viewBox="0 0 1000 1200" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <linearGradient id="pathGrad" gradientUnits="objectBoundingBox" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%"   stop-color="#0d7c47"/>
+            <stop offset="35%"  stop-color="#16a34a"/>
+            <stop offset="65%"  stop-color="#d97706"/>
+            <stop offset="100%" stop-color="#06b6d4"/>
+        </linearGradient>
+        <linearGradient id="pathGrad2" gradientUnits="objectBoundingBox" x1="1" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stop-color="#06b6d4"/>
+            <stop offset="35%"  stop-color="#0d7c47"/>
+            <stop offset="65%"  stop-color="#d97706"/>
+            <stop offset="100%" stop-color="#c026d3"/>
+        </linearGradient>
+        <!-- Geometry definitions: 6 winding paths covering different regions -->
+        <path id="b1" d="M -20,80 C 80,120 150,40 240,90 S 380,200 460,140 S 620,40 760,120 S 880,260 1020,200" />
+        <path id="b2" d="M 1020,260 C 920,340 970,460 880,540 S 760,720 830,820 S 940,1020 1020,1100" />
+        <path id="b3" d="M -20,1180 C 120,1080 180,1140 280,1040 S 440,860 580,920 S 760,860 880,780 S 990,720 1020,700" />
+        <path id="b4" d="M 500,-20 C 460,160 540,280 480,420 S 400,640 520,780 S 600,1000 480,1180" />
+        <path id="b5" d="M -20,540 C 80,580 180,460 320,520 S 480,640 620,580 S 780,460 920,520 S 1020,600 1020,640" />
+        <path id="b6" d="M 100,-20 C 180,140 60,260 200,400 S 360,560 280,720 S 480,880 380,1040 S 600,1180 700,1220" />
+    </defs>
+
+    <!-- Each bundle: 3 parallel tracks via translate offsets in the SVG userspace -->
+    <g class="bundle bundle-1">
+        <use class="track" href="#b1" transform="translate(0 -6)" />
+        <use class="track" href="#b1" />
+        <use class="track" href="#b1" transform="translate(0 6)" />
+    </g>
+    <g class="bundle bundle-3">
+        <use class="track" href="#b3" transform="translate(0 -7)" />
+        <use class="track" href="#b3" />
+        <use class="track" href="#b3" transform="translate(0 7)" />
+    </g>
+    <g class="bundle bundle-5">
+        <use class="track" href="#b5" transform="translate(0 -5)" />
+        <use class="track" href="#b5" />
+        <use class="track" href="#b5" transform="translate(0 5)" />
+    </g>
+</svg>
+
+<!-- Side nav with sliding pill indicator -->
+<nav class="sidenav" aria-label="Section navigation">
+    <button class="theme-toggle" id="themeToggle" role="switch" aria-checked="false" aria-label="Basculer le mode sombre">
+        <span class="toggle-track">
+            <span class="toggle-thumb"></span>
+        </span>
+    </button>
+    <ol class="nav-list" role="tablist" id="navList">
+        <span class="nav-pill" id="navPill" aria-hidden="true"></span>
+        <li><a class="nav-link active" data-target="problem" href="#problem">
+            <span class="nav-num">01</span><span class="nav-label">Le problème</span></a></li>
+        <li><a class="nav-link" data-target="data" href="#data">
+            <span class="nav-num">02</span><span class="nav-label">Les données</span></a></li>
+        <li><a class="nav-link" data-target="approach" href="#approach">
+            <span class="nav-num">03</span><span class="nav-label">L'approche</span></a></li>
+        <li><a class="nav-link" data-target="discovery" href="#discovery">
+            <span class="nav-num">04</span><span class="nav-label">Les résultats</span></a></li>
+        <li><a class="nav-link" data-target="pressure" href="#pressure">
+            <span class="nav-num">05</span><span class="nav-label">Mise à l'épreuve</span></a></li>
+        <li><a class="nav-link" data-target="demo" href="#demo">
+            <span class="nav-num">06</span><span class="nav-label">Essayez vous-même</span></a></li>
+        <li><a class="nav-link" data-target="limits" href="#limits">
+            <span class="nav-num">07</span><span class="nav-label">Limites assumées</span></a></li>
+        <li><a class="nav-link" data-target="roadmap" href="#roadmap">
+            <span class="nav-num">08</span><span class="nav-label">La suite</span></a></li>
+    </ol>
+</nav>
+
+<!-- ============= MAIN ============= -->
+<main id="scroll-wrapper">
+
+<!-- ===== Section 1: PROBLEM ===== -->
+<section id="problem" class="hero" data-section="problem">
+    <div class="aurora aurora-1"></div>
+    <div class="aurora aurora-2"></div>
+    <div class="aurora aurora-3"></div>
+
+    <div class="hero-inner" data-tilt>
+        <div class="hero-eyebrow">DAT0424 · Preuve de concept ML</div>
+        <div class="hero-script">une question à 100 M€</div>
+        <h1 class="hero-title">
+            Combien vaut <em>vraiment</em>
+            <span class="glitch magnetic" data-text="un joueur">un joueur</span><br>
+            à son <em>prime</em> ?
+        </h1>
+        <p class="hero-lede">
+            On ne prédit pas la valeur d'un joueur <em>aujourd'hui</em>. On prédit la
+            <strong>valeur de marché maximale qu'il atteindra durant sa carrière</strong>. Le pari :
+            un club peut signer un joueur de 19 ans pour 5 M€ dont le pic prédit est de 40 M€,
+            et empocher la différence si la prédiction se vérifie. Cette preuve de concept
+            pose la question : <strong>peut-on prédire ce pic de carrière à partir de la
+            biographie seule ?</strong>
+        </p>
+
+        <div class="stat-grid">
+            <div class="stat-card magnetic"><div class="num" data-count="39226" data-suffix=",">0</div><div class="lbl">Joueurs</div></div>
+            <div class="stat-card magnetic"><div class="num" data-count="189">0</div><div class="lbl">Nationalités</div></div>
+            <div class="stat-card magnetic"><div class="num" data-count="34">0</div><div class="lbl">Variables</div></div>
+            <div class="stat-card magnetic"><div class="num" data-text="1,53 M€">€0</div><div class="lbl">Erreur moyenne</div></div>
+            <div class="stat-card magnetic"><div class="num" data-text="0,798">0.000</div><div class="lbl">R² test</div></div>
+        </div>
+    </div>
+
+    <div class="scroll-cue" aria-hidden="true">
+        <span>descendre</span>
+        <div class="scroll-line"></div>
+    </div>
+</section>
+
+
+<!-- ===== Section 2: DATA ===== -->
+<section id="data" class="content" data-section="data">
+    <div class="kicker">Étape 1 sur 3 · <span class="scramble" data-text="Les données">Les données</span></div>
+    <h2 class="section-q">Avons-nous assez de signal pour prédire cela ?</h2>
+    <p class="section-a">39 226 joueurs avec une valeur d'apogée enregistrée et 34 variables construites. Regardons.</p>
+
+    <div class="chart-block reveal">
+        <h3 class="chart-q"><span class="chart-num">01</span> Comment la valeur d'apogée est-elle distribuée dans la population ?</h3>
+        <p class="chart-caption">
+            <strong>Problème :</strong> la cible a une queue droite brutale. Joueur médian ≈ 500 k€ ;
+            tier supérieur 150 M€+. Le modèle doit gérer un écart de valeur de 300×.
+        </p>
+        <div class="chart-frame" data-chart="histogram"></div>
+    </div>
+
+    <div class="chart-block reveal">
+        <h3 class="chart-q"><span class="chart-num">02</span> D'où viennent les joueurs les plus valorisés ?</h3>
+        <p class="chart-caption">
+            Les données pondérées sont meilleures — au lieu du nombre de joueurs (qui ne ferait que
+            cartographier la population), on montre la valeur d'apogée médiane par pays avec ≥ 50 joueurs.
+            Cela isole la densité de talent de la taille de la population.
+        </p>
+        <div class="chart-frame countries-frame">
+            <div id="countriesBars"></div>
+        </div>
+        <div class="map-legend" id="top5Legend"></div>
+    </div>
+
+    <div class="chart-block reveal">
+        <h3 class="chart-q"><span class="chart-num">03</span> Le poste prédit-il la valeur d'apogée ?</h3>
+        <p class="chart-caption">
+            Oui — mais pas autant qu'on pourrait le penser. Attaquants et milieux tirent plus haut ;
+            gardiens plus bas. Mais chaque poste a son joueur d'exception à 100 M€+.
+        </p>
+        <div class="chart-frame" data-chart="positionBox"></div>
+    </div>
+
+    <details class="feature-list reveal">
+        <summary>📋 Liste complète des variables (34)</summary>
+        <p><strong>Catégorielles (6) :</strong> position, sub_position, foot, country_of_citizenship, current_club_domestic_competition_id, has_agent</p>
+        <p><strong>Numériques (28) :</strong> âge, taille, sélections, buts internationaux, buts, passes, minutes jouées, cartons jaunes, cartons rouges, nombre de matchs, saisons jouées, durée de carrière, buts/90, passes/90, cartons/90, ratio buts/passes, meilleure saison (buts), meilleure saison (passes), diversité des compétitions, minutes UEFA, matchs UEFA, part UEFA, taille de l'effectif du club, âge moyen du club, % étrangers du club, internationaux dans le club, sélections par âge, âge².</p>
+    </details>
+</section>
+
+
+<!-- ===== Section 3: APPROACH (sticky stacking cards + 3D carousel) ===== -->
+<section id="approach" class="content" data-section="approach">
+    <div class="kicker">Étape 2 sur 3 · <span class="scramble" data-text="L'approche">L'approche</span></div>
+    <h2 class="section-q">Pourquoi ces quatre modèles, et pourquoi log-transformer la cible ?</h2>
+    <p class="section-a">Méthodologie en termes simples — aucun jargon nécessaire.</p>
+
+    <div class="callout reveal">
+        <strong>La cible est brutale.</strong> Une erreur de 0,5 M€ sur les 180 M€ de Mbappé, c'est rien.
+        La même erreur de 0,5 M€ sur un joueur médian à 500 k€, c'est une <em>erreur de 100%</em>.
+        Une perte au carré en euros ferait obséder le modèle sur le top 1%.<br><br>
+        <strong>La solution :</strong> entraîner chaque modèle sur une cible log-transformée
+        (<code>log(1+valeur)</code>) puis inverser en euros au moment de la prédiction. La fonction
+        de perte traite désormais un joueur à 1 M€ et un joueur à 100 M€ avec la même importance.
+    </div>
+
+    <h3 class="chart-q reveal">
+        <span class="chart-num">04</span> Quatre modèles, quatre philosophies
+        <span class="pill dark mono">3D · GLISSER OU SURVOLER POUR PAUSER</span>
+    </h3>
+
+    <div class="scene-3d">
+        <div class="a3d" style="--n: 4;" id="modelCarousel">
+            <article class="card-3d t1" style="--i: 0;">
+                <div class="badge-num">01 · RÉFÉRENCE DE BASE</div>
+                <div class="card-3d-title">🌱 Arbre de décision</div>
+                <p class="card-3d-body">
+                    La réponse la plus simple possible. Un arbre, qui divise les variables de manière
+                    gloutonne, profondeur max 10. Interprétable mais peu sophistiqué.
+                </p>
+                <div class="card-3d-foot"><span>R² 0,643</span><span>MAE 1,99 M€</span></div>
+            </article>
+            <article class="card-3d t2" style="--i: 1;">
+                <div class="badge-num">02 · ENSEMBLE</div>
+                <div class="card-3d-title">🌲 Forêt aléatoire</div>
+                <p class="card-3d-body">
+                    Demander à 140 arbres et voter. Le moyennage annule les erreurs individuelles.
+                    Robuste, mais les arbres profonds surajustent.
+                </p>
+                <div class="card-3d-foot"><span>R² 0,716</span><span>MAE 1,73 M€</span></div>
+            </article>
+            <article class="card-3d t2" style="--i: 2;">
+                <div class="badge-num">03 · GRADIENT BOOSTING</div>
+                <div class="card-3d-title">🚀 XGBoost</div>
+                <p class="card-3d-body">
+                    350 petits arbres, chacun corrigeant les résidus du précédent. Solide, mais les
+                    variables catégorielles sont encodées en entiers — traitées comme des ordinaux.
+                </p>
+                <div class="card-3d-foot"><span>R² 0,759</span><span>MAE 1,63 M€</span></div>
+            </article>
+            <article class="card-3d t3" style="--i: 3;">
+                <div class="badge-num">04 · GAGNANT</div>
+                <div class="card-3d-title">🏆 CatBoost</div>
+                <p class="card-3d-body">
+                    <strong>Gestion native des catégorielles</strong> — sans encodage trompeur.
+                    Le boosting ordonné prévient la fuite de la cible. Écart train/test seulement
+                    <strong>+0,007</strong>.
+                </p>
+                <div class="card-3d-foot"><span>R² 0,798</span><span>MAE 1,53 M€</span></div>
+            </article>
+        </div>
+    </div>
+
+    <div class="callout amber reveal">
+        <strong>Pourquoi des arbres, pas du deep learning ni du linéaire ?</strong><br>
+        39k lignes, c'est petit pour un réseau de neurones. Variables tabulaires sans structure
+        spatiale ou séquentielle. Catégorielles encodées en entiers — un modèle linéaire les
+        traiterait comme un ordre (ce qui n'a aucun sens). Les modèles à base d'arbres gèrent
+        cette forme de données nativement. <strong>CatBoost gagne parce qu'il traite les
+        catégorielles sans les forcer en entiers dès le départ.</strong>
+    </div>
+</section>
+
+
+<!-- ===== Section 4: DISCOVERY ===== -->
+<section id="discovery" class="content" data-section="discovery">
+    <div class="kicker">Étape 3 sur 3 · <span class="scramble" data-text="Les résultats">Les résultats</span></div>
+    <h2 class="section-q">Est-ce que ça a marché ?</h2>
+    <p class="section-a">Spoiler : oui. Voici la preuve sous trois formes.</p>
+
+    <div class="bignum-row reveal">
+        <div class="bignum featured">
+            <div class="lbl">CatBoost · Le gagnant</div>
+            <div class="num" data-count="0.798" data-decimals="3">0.000</div>
+            <div class="sub">R² test — explique 79,8% de la variance de la valeur d'apogée</div>
+        </div>
+        <div class="bignum compact">
+            <div class="lbl">Erreur moyenne</div>
+            <div class="num" data-text="1,53 M€">€0</div>
+            <div class="sub">MAE sur le set de test</div>
+        </div>
+        <div class="bignum compact">
+            <div class="lbl">R² val. croisée</div>
+            <div class="num" data-count="0.777" data-decimals="3">0.000</div>
+            <div class="sub">±0,005 sur 5 plis (bande la plus serrée)</div>
+        </div>
+        <div class="bignum compact">
+            <div class="lbl">Écart train/test</div>
+            <div class="num" data-text="+0,007">+0.000</div>
+            <div class="sub">Surajustement quasiment nul</div>
+        </div>
+    </div>
+
+    <h3 class="chart-q reveal"><span class="chart-num">05</span> Comment chaque modèle se compare-t-il ?</h3>
+    <div class="chart-frame reveal" data-chart="modelsTable"></div>
+
+    <h3 class="chart-q reveal"><span class="chart-num">06</span> Mais comment sait-on que 0,798 est vraiment <em>bon</em> ?</h3>
+    <p class="chart-caption reveal">Comparé à quoi ? Deux baselines triviales établissent le plancher.</p>
+    <div class="chart-frame reveal" data-chart="baselinesTable"></div>
+
+    <div class="callout reveal">
+        <strong>Lecture :</strong> prédire la médiane donne R² −0,08. La régression linéaire
+        <strong>s'effondre</strong> à R² 0,12 — preuve utile que <strong>les modèles non-linéaires
+        sont nécessaires, pas optionnels.</strong> CatBoost réduit la MAE de la baseline triviale
+        de <strong>54%</strong>.
+    </div>
+
+    <h3 class="chart-q reveal"><span class="chart-num">07</span> Le 0,798 est-il un coup de chance, ou stable ?</h3>
+    <p class="chart-caption reveal">Validation croisée à 5 plis. Si le R² test reste dans la bande de CV, on a un vrai signal.</p>
+    <div class="chart-frame reveal" data-chart="cvBars"></div>
+
+    <h3 class="chart-q reveal"><span class="chart-num">08</span> Qu'a réellement appris le modèle ?</h3>
+    <p class="chart-caption reveal">Les variables que CatBoost a trouvées les plus prédictives de la valeur d'apogée.</p>
+    <div class="chart-frame reveal" data-chart="featureImportance"></div>
+</section>
+
+
+<!-- ===== Section 5: PRESSURE ===== -->
+<section id="pressure" class="content" data-section="pressure">
+    <div class="kicker"><span class="scramble" data-text="Mise à l'épreuve">Mise à l'épreuve</span></div>
+    <h2 class="section-q">Comment cela pourrait-il être faux, et l'avons-nous testé ?</h2>
+    <p class="section-a">Trois vérifications de diagnostic : résidus, erreurs par poste, et une ablation de fuite.</p>
+
+    <h3 class="chart-q reveal"><span class="chart-num">09</span> Prédiction vs. réel — le modèle est-il bien calibré ?</h3>
+    <p class="chart-caption reveal">Chaque point est un joueur du set de test. Un modèle parfait pose chaque point sur la diagonale.</p>
+    <div class="chart-frame reveal" data-chart="residuals"></div>
+
+    <h3 class="chart-q reveal"><span class="chart-num">10</span> Où le modèle échoue-t-il par poste ?</h3>
+    <p class="chart-caption reveal">Les données pondérées sont meilleures — la MAE proportionnelle (% de la médiane) révèle ce que la MAE absolue cache.</p>
+    <div class="chart-frame reveal" data-chart="perPosition"></div>
+
+    <h3 class="chart-q reveal"><span class="chart-num">11</span> Et cette variable suspecte ?</h3>
+    <p class="chart-caption reveal">Nous avons signalé <code>current_club_domestic_competition_id</code> comme une fuite potentielle. L'avons-nous testée ?</p>
+    <div class="chart-frame reveal" data-chart="ablation"></div>
+
+    <div class="callout reveal">
+        <strong>Réponse défendable :</strong> retirer cette variable suspectée de fuite ne coûte que
+        <strong>−0,002 R²</strong> et +0,05 M€ de MAE. Les variables v2 ont absorbé son signal.
+        Le modèle n'est <strong>pas une simple mémorisation du prestige des championnats.</strong>
+    </div>
+
+    <h3 class="chart-q reveal"><span class="chart-num">12</span> Quelle est la précision par tranche de prix ?</h3>
+    <p class="chart-caption reveal">
+        Le R² en euros est dominé par le fait que le modèle obtient le bon ordre de grandeur. La
+        métrique que l'on <em>ressent</em> vraiment, c'est l'erreur en %, ventilée par tranche de
+        valeur sur le set de test. C'est la réponse honnête à : « ces prédictions sont-elles bonnes ? »
+    </p>
+    <div class="chart-frame reveal" data-chart="bucketDiagnostic"></div>
+    <div class="callout warn reveal">
+        <strong>Ce que cela nous dit, honnêtement :</strong> le modèle est meilleur sur la tranche
+        moyenne à haute (1–20 M€) où il a le plus de données d'entraînement. Il a un
+        <strong>biais vers la moyenne</strong> : joueurs bon marché sur-prédits, joueurs d'élite
+        sous-prédits. L'élément de feuille de route <strong>« Régression quantile pour intervalles
+        de prédiction »</strong> est la correction directe — au lieu de dire « Mbappé vaut 130 M€ »,
+        dire « Mbappé : 110–180 M€, confiance à 80% ».
+    </div>
+</section>
+
+
+<!-- ===== Section 6: DEMO ===== -->
+<section id="demo" class="content" data-section="demo">
+    <div class="kicker"><span class="scramble" data-text="Essayez vous-même">Essayez vous-même</span></div>
+    <h2 class="section-q">Choisissez un joueur. Que pense le modèle de sa valeur ?</h2>
+    <p class="section-a">Chaque joueur est étiqueté TRAIN ou TEST. Prenez TEST pour une lecture honnête de la généralisation.</p>
+
+    <div class="opportunities-block">
+        <div class="opportunities-head">
+            <h3 class="opportunities-title">💎 Top 10 opportunités de marché</h3>
+            <p class="opportunities-sub">
+                Joueurs à l'apogée, ≤ 28 ans, valeur actuelle ≥ 5 M€, pic prédit
+                au-dessus du prix actuel — classés par gain absolu (€). Cliquez pour analyser.
+            </p>
+        </div>
+        <div class="opportunities-row" id="opportunitiesRow"></div>
+    </div>
+
+    <div class="demo-controls">
+        <label class="toggle">
+            <input type="checkbox" id="onlyTest" checked />
+            <span class="toggle-slider"></span>
+            <span class="toggle-label">Joueurs TEST uniquement (prédictions honnêtes)</span>
+        </label>
+        <button class="btn magnetic" id="randomPick">🎲 Joueur TEST au hasard</button>
+    </div>
+
+    <!-- Search with ghost typeahead — type, press Tab/Enter to accept -->
+    <div class="player-search-wrap">
+        <div class="search-ghost-layer" aria-hidden="true"><span class="typed"></span><span class="ghost"></span></div>
+        <input type="text" id="playerSearch" autocomplete="off" spellcheck="false"
+               placeholder="Tapez un nom de joueur — appuyez sur Entrée pour confirmer" />
+        <div class="search-results" id="searchResults" role="listbox" hidden></div>
+    </div>
+
+    <!-- Hidden native select — kept for state but visually hidden, search is the new UI -->
+    <select id="playerSelect" class="player-select" aria-hidden="true" style="display:none;"></select>
+
+    <div class="player-card reveal" id="playerCard">
+        <!-- populated by app.js -->
+    </div>
+
+    <div class="bignum-row reveal" id="predictionRow">
+        <!-- populated by app.js -->
+    </div>
+
+    <h3 class="chart-q reveal"><span class="chart-num">13</span> Les quatre modèles — comment se comparent-ils sur ce joueur ?</h3>
+    <div class="chart-frame reveal" id="modelComparison"></div>
+</section>
+
+
+<!-- ===== Section 7: LIMITS ===== -->
+<section id="limits" class="content" data-section="limits">
+    <div class="kicker"><span class="scramble" data-text="Limites assumées">Limites assumées</span></div>
+    <h2 class="section-q">Où cette preuve de concept est-elle limitée ?</h2>
+    <p class="section-a">Trois vraies limites que nous assumons. Les exposer ouvertement est plus crédible que les cacher.</p>
+
+    <ul class="stacking-cards">
+        <li class="stack-card stack-1">
+            <div class="stack-inner">
+                <span class="pill red">CONCEPTUEL</span>
+                <span class="stack-num">01</span>
+                <h3>Évaluation rétrospective, pas prédiction prospective</h3>
+                <p>
+                    Les variables sont cumulatives sur la carrière ; la cible est le pic de carrière.
+                    Pour un joueur retraité, les variables incluent des années d'après-pic.
+                    La reformulation honnête : <em>« prédire le pic à 25 ans à partir des variables
+                    jusqu'à 21 ans. »</em> C'est dans la feuille de route.
+                </p>
+            </div>
+        </li>
+        <li class="stack-card stack-2">
+            <div class="stack-inner">
+                <span class="pill amber">BRUIT DE VARIABLE</span>
+                <span class="stack-num">02</span>
+                <h3><code>age</code> est l'âge actuel, pas l'âge à l'apogée</h3>
+                <p>
+                    Aujourd'hui moins la date de naissance. Pour les joueurs retraités, c'est leur âge
+                    actuel. Cela ajoute du bruit ; ne biaise pas systématiquement le résultat.
+                </p>
+            </div>
+        </li>
+        <li class="stack-card stack-3">
+            <div class="stack-inner">
+                <span class="pill amber">ÉVALUATION</span>
+                <span class="stack-num">03</span>
+                <h3>Split aléatoire, pas temporel</h3>
+                <p>
+                    Un modèle déployé s'entraînerait sur les joueurs ayant atteint leur pic avant l'année
+                    Y et prédirait sur les joueurs actifs en Y. Notre split aléatoire (seed 42) laisse
+                    voir au modèle les contemporains de ses cibles.
+                </p>
+            </div>
+        </li>
+    </ul>
+
+    <details class="defence-faq reveal">
+        <summary>🎤 FAQ de défense — cinq questions, réponses préparées</summary>
+        <div class="faq-content">
+            <div class="faq-q"><strong>Q : N'est-ce pas une fuite ? Des stats de carrière pour prédire un pic de carrière.</strong>
+                <p>Oui — évaluation rétrospective, pas prédiction prospective. Nous le disons clairement.
+                Nous avons testé la variable la plus suspecte (<code>current_club_competition_id</code>)
+                par ablation — la retirer ne coûte que −0,002 R². Le modèle n'est pas une simple
+                mémorisation.</p></div>
+            <div class="faq-q"><strong>Q : Comment sait-on que R² 0,80 est bon ?</strong>
+                <p>Deux baselines. Prédire la médiane : R² −0,08. Régression linéaire : R² 0,12.
+                CatBoost réduit la MAE de 3,33 M€ à 1,53 M€ — une <strong>baisse de 54 %</strong>.
+                La validation croisée confirme que 0,798 n'est pas un coup de chance
+                (CV 0,777 ± 0,005 — bande extrêmement serrée).</p></div>
+            <div class="faq-q"><strong>Q : Le modèle est-il en surajustement ?</strong>
+                <p>CatBoost : R² train 0,805 / R² test 0,798 — écart de <strong>+0,007</strong>.
+                Quasiment nul (grâce au boosting ordonné).</p></div>
+            <div class="faq-q"><strong>Q : Où le modèle échoue-t-il ?</strong>
+                <p>Queue droite. Les joueurs au-dessus de 50 M€ sont sous-prédits — les transferts
+                individuels dominent là-bas.</p></div>
+            <div class="faq-q"><strong>Q : Pourquoi CatBoost plutôt que XGBoost ?</strong>
+                <p>XGBoost oblige à encoder les 6 variables catégorielles en entiers — qu'il traite
+                ensuite comme un ordre (absurde : « France = 12, Italie = 15 »). CatBoost les gère
+                nativement, avec des statistiques de cible ordonnées et une protection anti-fuite
+                intégrée. Mêmes données, mêmes variables : XGBoost R² 0,759, CatBoost R² 0,798.
+                Toute la différence est dans la gestion des catégorielles.</p></div>
+        </div>
+    </details>
+</section>
+
+
+<!-- ===== Section 8: ROADMAP (brutalist + hacker text on hover) ===== -->
+<section id="roadmap" class="content" data-section="roadmap">
+    <div class="kicker"><span class="scramble" data-text="La suite">La suite</span></div>
+    <h2 class="section-q">Si cette PoC devenait une v1, qu'est-ce qui changerait ?</h2>
+    <p class="section-a">Cinq évolutions — chacune défendable aujourd'hui, chacune testable. La preuve, tournée vers l'avenir.</p>
+
+    <div class="brutal-timeline">
+        <div class="brutal-phase pitch reveal">
+            <div class="brutal-num">01</div>
+            <div class="brutal-content">
+                <h3 class="brutal-title scramble-hover" data-text="Reformulation à l'âge d'apogée">Reformulation à l'âge d'apogée
+                    <span class="pill amber">résout les limites #1 + #2</span>
+                </h3>
+                <p class="brutal-body">
+                    Geler les variables de chaque joueur à 21 ans — stats jusqu'à 21 ans, sans club
+                    actuel, sans fuite d'âge — et prédire son pic futur. Cela transforme le modèle de
+                    rétrospectif à véritablement prospectif.
+                </p>
+            </div>
+        </div>
+        <div class="brutal-phase amber reveal">
+            <div class="brutal-num">02</div>
+            <div class="brutal-content">
+                <h3 class="brutal-title scramble-hover" data-text="Split train/test temporel">Split train/test temporel
+                    <span class="pill amber">résout la limite #3</span>
+                </h3>
+                <p class="brutal-body">
+                    Entraîner sur les joueurs ayant atteint leur pic avant 2018 ; tester sur les joueurs
+                    ayant atteint leur pic en 2018+. Teste la généralisation entre époques (inflation
+                    du marché, évolution économique des championnats).
+                </p>
+            </div>
+        </div>
+        <div class="brutal-phase pitch reveal">
+            <div class="brutal-num">03</div>
+            <div class="brutal-content">
+                <h3 class="brutal-title scramble-hover" data-text="Régression quantile">Régression quantile
+                    <span class="pill">intervalles de prédiction</span>
+                </h3>
+                <p class="brutal-body">
+                    Au lieu de « 42 M€ », dire <strong>« 32–58 M€, confiance à 80% »</strong>. Régression
+                    quantile par gradient boosting — déjà supportée dans XGBoost via objectif personnalisé.
+                </p>
+            </div>
+        </div>
+        <div class="brutal-phase cyan reveal">
+            <div class="brutal-num">04</div>
+            <div class="brutal-content">
+                <h3 class="brutal-title scramble-hover" data-text="SHAP pour explications par joueur">SHAP pour explications par joueur
+                    <span class="pill amber">interprétabilité</span>
+                </h3>
+                <p class="brutal-body">
+                    Pour chaque prédiction, faire ressortir quelles variables l'ont fait monter ou
+                    descendre. <em>« Bellingham gagne +40 M€ parce qu'il a 21 ans, joue milieu dans un
+                    club de top-5, et perd −8 M€ parce que ses sélections sont en dessous de ses pairs. »</em>
+                    Transforme le modèle de boîte noire en outil de négociation.
+                </p>
+            </div>
+        </div>
+        <div class="brutal-phase pitch reveal">
+            <div class="brutal-num">05</div>
+            <div class="brutal-content">
+                <h3 class="brutal-title scramble-hover" data-text="Variables de trajectoire">Variables de trajectoire
+                    <span class="pill">gain attendu le plus fort</span>
+                </h3>
+                <p class="brutal-body">
+                    Remplacer les stats cumulatives par la trajectoire : tendance des buts par 90 min,
+                    taux de croissance des minutes, ajustement à la courbe âge-vs-production. Capture
+                    si un joueur monte ou plafonne.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="callout amber reveal">
+        <strong>Pourquoi cela compte comme part de la PoC :</strong> le brief précise qu'un travail
+        théoriquement prouvable mais pas encore réalisé compte dans la preuve de concept. Les cinq
+        évolutions ci-dessus sont testables, aucune n'exige de nouvelles données, toutes étendent le
+        pipeline existant. <strong>La feuille de route est la preuve que ce n'est pas un modèle
+        unique — c'est la fondation d'un vrai produit.</strong>
+    </div>
+
+    <footer class="site-foot">
+        <div>DAT0424 · Preuve de concept ML · <strong>Malcolm Morgan</strong></div>
+        <div class="mono">CatBoost · R² test 0,798 · R² CV 0,777±0,005 · MAE 1,53 M€</div>
+    </footer>
+</section>
+
+</main>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
