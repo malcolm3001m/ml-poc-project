@@ -1,236 +1,135 @@
-# ML Project Template
+# ⚽ Predicting Football Players' Peak Market Value
 
-This repository is the base template that each student will fork and adapt for the final machine learning proof-of-concept project.
+**DAT0424 — ML Proof of Concept — Malcolm Morgan**
 
-The template already defines the project structure and the main execution workflow. Your job as a student is to plug your own dataset loading logic, trained models, evaluation metrics, and Streamlit presentation into the fixed contracts described below.
+> **The story.** Transfer market values on Transfermarkt are crowd-sourced and lag reality.
+> Can we predict a player's career-peak market value from biographical + cumulative
+> performance data alone?
+>
+> **Approach.** Three tree-based regressors (Decision Tree, Random Forest, XGBoost) trained
+> on 39,226 players with 14 features. Log-transformed target to handle the long right tail.
+>
+> **Result.** XGBoost — **test R² 0.726, 5-fold CV R² 0.707 ± 0.013, MAE €1.79M.** Validated
+> against baselines, ablations, and cross-validation. See [PRESENTATION_BRIEF.md](PRESENTATION_BRIEF.md)
+> for the defended narrative.
 
-## Repository Structure
+---
 
-- `data/`: raw and processed data files
-- `logs/`: log files generated during execution
-- `models/`: trained machine learning models saved to disk
-- `notebooks/`: Jupyter notebooks for analysis and experimentation
-- `plots/`: generated visualizations
-- `results/`: evaluation outputs, including model comparison tables
-- `scripts/`: executable project scripts
-- `scripts/main.py`: main entry point for evaluating models and launching the app
-- `src/`: project source code
-- `src/config.py`: project paths, model registry, and Streamlit configuration
-- `src/data.py`: student-implemented dataset loading function
-- `src/metrics.py`: student-implemented metric computation function
-- `src/app.py`: fixed Streamlit entry point that students must customize
-- `tests/`: optional tests
-- `.env`: environment variables if your project needs them
-
-## Expected Workflow
-
-When you run:
+## Quick start (for live verification)
 
 ```bash
+# 1. Activate the virtual environment
+source venv/bin/activate
+
+# 2. Run the orchestrator — evaluates all 3 models then launches Streamlit
 python scripts/main.py
+
+# 3. Open http://localhost:8501 — 8-section narrative pitch
 ```
 
-the template will do the following:
-
-1. read the list of trained models from `src/config.py`,
-2. call your dataset loading function from `src/data.py`,
-3. load each serialized model from `models/`,
-4. run predictions on the test split,
-5. call your metric computation function from `src/metrics.py`,
-6. save the results to `results/model_metrics.csv`,
-7. print the metrics in the terminal,
-8. launch the Streamlit app on `localhost`.
-
-## What You Must Update
-
-### 1. Register your trained models in `src/config.py`
-
-Replace the example `MODELS` dictionary with your own trained models.
-
-Each entry must define at least:
-
-- `name`
-- `description`
-- `path`
-
-Example:
-
-```python
-MODELS = {
-    "log_reg": {
-        "name": "Logistic Regression",
-        "description": "Baseline classifier with standardized features.",
-        "path": MODELS_DIR / "log_reg.joblib",
-    },
-    "rf": {
-        "name": "Random Forest",
-        "description": "Tree ensemble tuned on the validation split.",
-        "path": MODELS_DIR / "random_forest.pkl",
-    },
-}
-```
-
-Supported model formats are:
-
-- `.joblib`
-- `.pkl`
-- `.pickle`
-
-Each saved object must expose a `.predict(X)` method.
-
-### 2. Implement the dataset loading function in `src/data.py`
-
-The file already exists and must keep this function name and signature:
-
-```python
-def load_dataset_split() -> tuple[Any, Any, Any, Any]:
-```
-
-It must return:
-
-```python
-(X_train, X_test, y_train, y_test)
-```
-
-Constraints:
-
-- `X_train` and `X_test` must be in a format accepted by every model in `MODELS`
-- `y_train` and `y_test` must contain the matching targets
-- `X_test` and `y_test` will be used by `scripts/main.py` for evaluation
-- Typical return types are `pandas.DataFrame`, `pandas.Series`, and/or `numpy.ndarray`
-
-Minimal example:
-
-```python
-import pandas as pd
-from sklearn.model_selection import train_test_split
-
-from config import DATA_DIR
-
-
-def load_dataset_split():
-    df = pd.read_csv(DATA_DIR / "processed_dataset.csv")
-    X = df.drop(columns=["target"])
-    y = df["target"]
-    return train_test_split(X, y, test_size=0.2, random_state=42)
-```
-
-### 3. Implement the metric computation function in `src/metrics.py`
-
-The file already exists and must keep this function name and signature:
-
-```python
-def compute_metrics(y_true: Any, y_pred: Any) -> dict[str, float]:
-```
-
-It must return a dictionary mapping metric names to numeric values.
-
-Example:
-
-```python
-from sklearn.metrics import accuracy_score, f1_score
-
-
-def compute_metrics(y_true, y_pred):
-    return {
-        "accuracy": accuracy_score(y_true, y_pred),
-        "f1": f1_score(y_true, y_pred, average="weighted"),
-    }
-```
-
-Constraints:
-
-- Use the same metric names for all evaluated models
-- Every metric value must be numeric and convertible to `float`
-- The returned dictionary is written directly to `results/model_metrics.csv`
-
-### 4. Customize the Streamlit application in `src/app.py`
-
-The file `src/app.py` is the fixed Streamlit entry point used by `scripts/main.py`.
-
-Keep this function name:
-
-```python
-def build_app() -> None:
-```
-
-You should update the placeholder app to present:
-
-- the business objective,
-- the dataset and key insights,
-- your visualizations,
-- model comparison results,
-- any prediction demo or interactive workflow relevant to your project.
-
-The template app already tries to display `results/model_metrics.csv` if it exists.
-
-## Recommended Student Workflow
-
-1. Fork this repository.
-2. Create and activate your virtual environment.
-3. Install dependencies:
+To re-run the full diagnostic suite (overfit check, CV, baselines, ablation, per-position):
 
 ```bash
-pip install -r requirements.txt
+python scripts/validate.py
 ```
 
-The template also reads `project-repo/.env` with `python-dotenv`. By default it contains:
+This writes 4 CSVs to `results/`:
 
-```text
-PYTHONPATH=./src
+- `validation_metrics.csv` — overfit, CV, baseline diagnostics
+- `ablation.csv` — XGBoost ± suspected leak feature
+- `per_position_mae.csv` — error breakdown by position
+- `residuals.csv` — (actual, predicted, position, name) for the calibration plot
+
+---
+
+## Repo layout
+
+```
+├── data/                       Transfermarkt CSVs (12 files, gitignored)
+├── models/                     Trained .joblib models (3 files)
+│   ├── decision_tree.joblib
+│   ├── random_forest.joblib
+│   └── xgboost_regressor.joblib
+├── notebooks/
+│   └── 02_model_training.ipynb Original training notebook
+├── results/                    Evaluation outputs
+│   ├── model_metrics.csv       Test-set metrics per model
+│   ├── validation_metrics.csv  Overfit + CV + baselines
+│   ├── ablation.csv            Leakage ablation
+│   ├── per_position_mae.csv    Per-position breakdown
+│   └── residuals.csv           Calibration data
+├── scripts/
+│   ├── main.py                 Orchestrator: evaluate → launch Streamlit
+│   └── validate.py             Diagnostic suite
+├── src/
+│   ├── app.py                  8-section Streamlit presentation
+│   ├── config.py               Paths + MODELS registry
+│   ├── data.py                 load_dataset_split() + feature engineering
+│   ├── metrics.py              compute_metrics(): MAE, RMSE, R²
+│   ├── model_io.py             Model loader (joblib/pickle)
+│   └── results.py              CSV writer for metrics
+├── PRESENTATION_BRIEF.md       Defended narrative + Q&A + numbers
+└── README.md                   You are here
 ```
 
-This is used when `scripts/main.py` launches Streamlit so modules inside `src/` resolve as top-level imports such as `from config import ...` or `from app import build_app`.
+---
 
-4. Add your data files to `data/`.
-5. Train and save your models into `models/`.
-6. Update `src/config.py`.
-7. Implement `src/data.py`.
-8. Implement `src/metrics.py`.
-9. Customize `src/app.py`.
-10. Run the full project:
+## The presentation — 8 sections
 
-```bash
-python scripts/main.py
-```
+The Streamlit app at `localhost:8501` is structured as a non-technical pitch following
+the **"I had X problem → did Y → got Z solution"** template:
 
-## Output Produced by the Template
+1. **The problem** — hero hook, three use cases, the spine
+2. **The data** — distribution, choropleth map (peak value by country), position + age
+3. **The approach** — three models in plain English, why trees not deep learning
+4. **The discovery** — XGB wins; proved 3 ways (baselines, CV, feature importance)
+5. **Pressure-testing** — residuals, per-position errors, leakage ablation
+6. **Try it yourself** — interactive prediction demo, TRAIN/TEST tagged
+7. **Honest limits** — 3 real limitations + Defence FAQ in expander
+8. **The roadmap** — theoretically-provable v2 items (age-at-peak reframe, temporal split,
+   quantile regression, SHAP, trajectory features)
 
-After a successful run, you should have:
+---
 
-- printed metrics in the terminal,
-- a CSV file at `results/model_metrics.csv`,
-- a Streamlit app running locally, by default at:
+## Validation summary
 
-```text
-http://localhost:8501
-```
+| Metric | XGBoost | Random Forest | Decision Tree |
+|---|---:|---:|---:|
+| Test R² | **0.726** | 0.671 | 0.547 |
+| Test MAE | **€1.79M** | €1.89M | €2.21M |
+| CV R² (5-fold) | 0.707 ± 0.013 | 0.657 ± 0.010 | 0.570 ± 0.019 |
+| Train/test gap | **+0.017** | +0.168 | +0.101 |
 
-## Common Errors
+**Baselines:**
+- Predict-median: R² −0.08, MAE €3.33M
+- Linear regression: R² −755 (catastrophic — demonstrates non-linear required)
+- XGBoost cuts trivial-baseline MAE by **46%**
 
-### `NotImplementedError` from `data`
+**Leakage ablation:** dropping `current_club_domestic_competition_id` costs only **−0.020 R²**
+and **+€0.15M MAE**. The signal is real, not league-prestige memorisation.
 
-You have not implemented `load_dataset_split()` yet.
+---
 
-### `NotImplementedError` from `metrics`
+## Stack
 
-You have not implemented `compute_metrics()` yet.
+- Python 3.11+
+- pandas, numpy, scikit-learn
+- xgboost
+- streamlit + plotly
+- joblib for model persistence
+- (No GPU required; full training + validation runs in ~3 min on a MacBook M4.)
 
-### `FileNotFoundError` for a model path
+---
 
-One of the model files declared in `src/config.py` does not exist in `models/`.
+## Template contract (preserved from project skeleton)
 
-### Model has no `predict` method
+The project follows the DAT0424 template structure:
 
-The object loaded from disk is not a trained model compatible with the template evaluation flow.
+- `src/data.py` exposes `load_dataset_split() -> (X_train, X_test, y_train, y_test)`
+- `src/metrics.py` exposes `compute_metrics(y_true, y_pred) -> dict[str, float]`
+- `src/app.py` exposes `build_app() -> None` as the Streamlit entry point
+- `src/config.py` defines the `MODELS` registry consumed by `scripts/main.py`
+- `scripts/main.py` runs evaluation + launches Streamlit at `localhost:8501`
 
-### Streamlit starts but shows only the placeholder page
-
-You still need to customize `src/app.py` with your project content.
-
-## Notes
-
-- Keep `scripts/main.py` as the main orchestration entry point.
-- Keep the function names and signatures in `src/data.py`, `src/metrics.py`, and `src/app.py` unchanged.
-- Save your trained models before running the template.
-- Use the same evaluation logic for all registered models so the comparison remains fair.
+These contracts are unchanged from the template — verifiable by diffing against the
+upstream `basile-desjuzeur/ml-project-poc-template` README.
