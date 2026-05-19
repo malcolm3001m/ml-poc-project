@@ -1,14 +1,9 @@
-"""Streamlit presentation — Transfermarkt peak market value PoC (v5 — patterns layered).
+"""Streamlit application for the DAT0424 ML PoC — peak market value prediction.
 
-NextLevel patterns mined and applied:
-- hero-effects/001 — aurora mesh + glitch clip-path text + shimmer sweep
-- micro-interactions/005 — full glass token kit (white-md, blur scale, reflections)
-- micro-interactions/003 — @property --angle conic-gradient animated borders
-- micro-interactions/001 — CSS map pin pulse on choropleth highlights
-- cards-and-galleries/004 — tan() pure-CSS 3D carousel for models
-- cards-and-galleries/001 — staggered transition-delay cascade + ease 0.2/0.8/0.2/1
-- layouts/001 — script/serif overlay headline pattern
-- layouts/004 — brutalist hacker typography for roadmap numbers
+Eight sections walk through the project as a non-technical pitch: problem, data,
+approach, results, pressure-testing, interactive demo, honest limits, and roadmap.
+
+The build_app() function is the entry point called by scripts/main.py.
 """
 
 from __future__ import annotations

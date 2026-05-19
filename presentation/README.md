@@ -1,76 +1,67 @@
-# Peak Value — standalone HTML presentation
+# Presentation page
 
-A **pure HTML/CSS/JS** companion to the Streamlit app. No Python runtime needed at view time.
-Built to use the patterns Streamlit's sandbox can't host:
-
-- Custom lerp cursor with magnetic states
-- Hacker-text scramble on section titles + roadmap hover
-- Sliding pill nav indicator (left side)
-- Mouse parallax on hero
-- Canvas spotlight that follows the cursor (hero only)
-- Day/night toggle persisted to localStorage
-- Scroll-driven `animation-timeline: view()` reveals
-- CSS-only sticky stacking cards (Section 7)
-- Counter animations on every big number
-- SVG-rendered charts with brand-aligned theming
-- Pure-CSS 3D model carousel with drag-to-spin
-- Animated conic-gradient borders on the prediction panel + player selector
-- 8 NextLevel inspiration patterns layered
+A standalone HTML version of the DAT0424 PoC slide deck used for the oral
+defence. Pure HTML / CSS / JS — no Python needed at view time. All the
+predictions, validation numbers, and player data are baked into `data.js`
+ahead of time by the build script below.
 
 ## Run locally
 
-From the project root:
+From this directory:
 
 ```bash
-cd presentation
 python3 -m http.server 8000
 # then open http://localhost:8000
 ```
 
-Or just **double-click `index.html`** — it works directly from `file://` too (the data is baked in, no fetch needed).
+Opening `index.html` directly via `file://` also works because everything
+is baked into `data.js` — no fetch required (except for the world atlas
+geometry, which is loaded from the local `world-atlas.json`).
 
-## Re-bake the data
+## Re-baking the data
 
-Whenever models or validation outputs change, regenerate `data.js`:
+Whenever I retrain the models or change validation outputs, I regenerate
+`data.js` with:
 
 ```bash
-# from project root with the venv active
+# from the project root, with the venv active
 python presentation/build_data.py
 ```
 
-This loads the 3 trained `.joblib` models, picks 35 famous players + 40 random TEST players, computes all 3 predictions per player, and writes `data.js` (~200 KB) with everything embedded: validation numbers, histogram bins, country aggregates, residuals, feature importances, per-position MAE.
-
-## Deploy to Vercel (drag-and-drop)
-
-The `presentation/` folder is a static site — drag it into the Vercel dashboard or run `vercel` from inside it:
-
-```bash
-cd presentation
-npx vercel
-# follow the prompts (no build step needed)
-```
-
-Or deploy to GitHub Pages: push the repo, then in repo settings set Pages source to `/presentation` on `main`.
+The script loads the four trained `.joblib` models, picks a mix of famous
+players, random TEST players, and the top ROI opportunities (~360 total),
+computes all four model predictions per player, and writes `data.js`
+with everything embedded: validation numbers, histogram bins, country
+aggregates, residuals, feature importances, per-position MAE, and the
+prediction-bucket diagnostic.
 
 ## File layout
 
 ```
 presentation/
-├── index.html        Structure — 8 sections matching the Streamlit version
-├── style.css         Design system + all CSS patterns (~1100 lines)
-├── app.js            Interactions: cursor, scramble, nav, charts, demo (~700 lines)
+├── index.html        Slide-deck structure — 8 sections matching the Streamlit version
+├── style.css         Design system + all the page styling
+├── app.js            Interactions: search, charts, demo, world map
 ├── data.js           Baked output of build_data.py — DO NOT edit by hand
-├── build_data.py     Regenerates data.js from the live model files
+├── world-atlas.json  World GeoJSON for the choropleth (cached locally)
+├── build_data.py     Regenerates data.js from the live models
+├── SCRIPT.md         Stage-by-stage French script for the oral defence
 └── README.md         This file
 ```
 
 ## Browser support
 
-- Chrome / Edge 111+ — everything works
-- Firefox 128+ — everything works
-- Safari 17.4+ — everything works, including `animation-timeline: view()` (Safari 17.4)
-- Older browsers — the reveal animations fall back to plain fade-ins via `@supports`
+Tested in Chrome / Edge / Firefox / Safari. The page uses
+`animation-timeline: scroll(root)` for the scroll-driven background paths,
+which falls back to a JS handler on older browsers.
 
-## Status
+## Deploy
 
-This is a **tester** alongside the Streamlit app. The Streamlit version remains the committed GitHub deliverable; this folder is a no-limits playground for the visual presentation patterns.
+The folder is a static site, so:
+
+```bash
+cd presentation
+npx vercel        # or drag the folder into the Vercel dashboard
+```
+
+Or push to GitHub Pages by setting the source to `/presentation` on `main`.

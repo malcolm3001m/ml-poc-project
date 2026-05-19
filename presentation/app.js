@@ -451,35 +451,99 @@
     };
 
 
-    // ── COUNTRIES (top 25, horizontal bars w/ reveal animation) ────────────
-    const renderCountries = () => {
-        const wrap = $('#countriesBars');
-        if (!wrap) return;
-        const top25 = data.countries.slice(0, 25);
-        const max = Math.max(...top25.map(c => c.median_peak));
-        wrap.innerHTML = top25.map(c => {
-            const scale = c.median_peak / max;
-            return `<div class="country-row" data-scale="${scale.toFixed(3)}">
-                <div class="name">${c.country} <span style="color:var(--c-muted-2); font-family: var(--f-mono); font-size: 0.75rem; margin-left: 4px;">${c.n}</span></div>
-                <div class="bar-wrap"><div class="bar" style="--scale: ${scale.toFixed(3)};"></div></div>
-                <div class="val">${fmtEur(c.median_peak)}</div>
-            </div>`;
-        }).join('');
+    // ── WORLD MAP CHOROPLETH (D3 + topojson) ───────────────────────────────
+    // Renders countries coloured by median peak value of their players.
+    // Hovering a country shows a tooltip with the data; survives offline because
+    // world-atlas.json is a local file.
+    const renderWorldMap = async () => {
+        const container = document.querySelector('#worldMap');
+        const tooltip = document.querySelector('#mapTooltip');
+        if (!container || !window.d3 || !window.topojson) return;
 
-        if ('IntersectionObserver' in window) {
-            const rowObs = new IntersectionObserver((entries) => {
-                entries.forEach(en => {
-                    if (en.isIntersecting) {
-                        en.target.classList.add('reveal-in');
-                        rowObs.unobserve(en.target);
-                    }
-                });
-            }, { threshold: 0.2 });
-            $$('.country-row').forEach((r, i) => {
-                r.style.transitionDelay = `${i * 30}ms`;
-                rowObs.observe(r);
-            });
+        // The TopoJSON uses numeric ISO codes. Map our country names to ISO numbers.
+        // The dataset's English names align with the world-atlas naming.
+        let world;
+        try {
+            const res = await fetch('world-atlas.json');
+            world = await res.json();
+        } catch (e) {
+            container.innerHTML = '<p style="padding: var(--s-5); color: var(--c-muted);">Carte indisponible (offline).</p>';
+            return;
         }
+
+        const countries = topojson.feature(world, world.objects.countries).features;
+
+        // Build lookup: country name (lower) -> data row
+        const dataByName = {};
+        const home = { 'England': 'United Kingdom', 'Scotland': 'United Kingdom',
+                       'Wales': 'United Kingdom', 'Northern Ireland': 'United Kingdom' };
+        data.countries.forEach(c => {
+            const key = (home[c.country] || c.country).toLowerCase();
+            const existing = dataByName[key];
+            if (!existing || c.n > existing.n) dataByName[key] = c;
+        });
+
+        // Map values, build colour scale
+        const values = data.countries.map(c => c.median_peak);
+        const max = d3.max(values);
+        const min = d3.min(values);
+        const color = d3.scaleSequential()
+            .domain([Math.log10(min), Math.log10(max)])
+            .interpolator(d3.interpolateRgbBasis(['#e8f5ee', '#a5d4b8', '#3da66c', '#0d7c47', '#075a32']));
+
+        // Render
+        const w = container.clientWidth;
+        const h = 480;
+        container.innerHTML = '';
+        const svg = d3.select(container).append('svg')
+            .attr('viewBox', `0 0 ${w} ${h}`)
+            .attr('preserveAspectRatio', 'xMidYMid meet');
+        const projection = d3.geoNaturalEarth1().fitSize([w, h], topojson.feature(world, world.objects.countries));
+        const path = d3.geoPath(projection);
+
+        // Subtle ocean background
+        svg.append('rect').attr('width', w).attr('height', h).attr('fill', 'transparent');
+
+        const showTip = (event, d, row) => {
+            tooltip.innerHTML = `
+                <div class="name">${d.properties.name}</div>
+                ${row ? `<div class="val">${fmtEur(row.median_peak)}</div>
+                <div class="sub">${row.n.toLocaleString()} joueurs · valeur médiane d'apogée</div>`
+                : '<div class="sub">Pas assez de joueurs (&lt; 50)</div>'}
+            `;
+            const rect = container.getBoundingClientRect();
+            tooltip.style.left = (event.clientX - rect.left + 14) + 'px';
+            tooltip.style.top = (event.clientY - rect.top - 18) + 'px';
+            tooltip.classList.add('show');
+            tooltip.setAttribute('aria-hidden', 'false');
+        };
+        const hideTip = () => { tooltip.classList.remove('show'); tooltip.setAttribute('aria-hidden','true'); };
+
+        svg.append('g').selectAll('path').data(countries).enter().append('path')
+            .attr('class', d => {
+                const row = dataByName[d.properties.name.toLowerCase()];
+                return 'country' + (row ? '' : ' no-data');
+            })
+            .attr('d', path)
+            .attr('fill', d => {
+                const row = dataByName[d.properties.name.toLowerCase()];
+                return row ? color(Math.log10(row.median_peak)) : '#f5f5f0';
+            })
+            .on('mousemove', function(event, d) {
+                const row = dataByName[d.properties.name.toLowerCase()];
+                showTip(event, d, row);
+            })
+            .on('mouseleave', hideTip);
+
+        // Scale legend
+        const scale = document.createElement('div');
+        scale.className = 'map-scale';
+        scale.innerHTML = `
+            <div style="font-weight:600; margin-bottom:2px;">Valeur médiane au pic</div>
+            <div class="scale-bar"></div>
+            <div class="scale-labels"><span>${fmtEur(min)}</span><span>${fmtEur(max)}</span></div>
+        `;
+        container.appendChild(scale);
     };
 
     // ── TOP 5 LEGEND with pin-pulse ────────────────────────────────────────
@@ -757,7 +821,7 @@
             const fn = charts[frame.dataset.chart];
             if (fn) fn(frame);
         });
-        renderCountries();
+        renderWorldMap();
         renderTop5();
     };
     renderCharts();
@@ -1183,7 +1247,7 @@
         let dragging = false;
         let isHovered = false;
         let lastX = 0;
-        const autoSpeed = -0.18;   // gentle auto-rotation when idle (deg/frame ≈ 11°/s, reversed)
+        const autoSpeed = -0.12;   // 8-card ring spins at ~7°/s — feels like a real carousel
         const friction = 0.93;     // velocity decay per frame (~0.5s to stop)
 
         const applyRotation = () => {

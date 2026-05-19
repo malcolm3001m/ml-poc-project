@@ -202,17 +202,19 @@ a { color: inherit; text-decoration: none; }
 }
 
 /* Ambient march — always visible motion even when scroll is idle.
-   Slow constant drift so the page never feels frozen. */
+   Slow constant drift so the page never feels frozen. Translate3d + will-change
+   keep each bundle on its own GPU layer to avoid scroll-induced stutter. */
+.bundle {
+    will-change: transform;
+    transform: translateZ(0);
+}
 @keyframes ambient-drift {
-    from { transform: translateX(0); }
-    to   { transform: translateX(-30px); }
+    from { transform: translate3d(0, 0, 0); }
+    to   { transform: translate3d(-30px, 0, 0); }
 }
 .bundle-1 { animation: ambient-drift 18s linear infinite; }
-.bundle-2 { animation: ambient-drift 22s linear infinite reverse; }
 .bundle-3 { animation: ambient-drift 26s linear infinite; }
-.bundle-4 { animation: ambient-drift 20s linear infinite reverse; }
 .bundle-5 { animation: ambient-drift 24s linear infinite; }
-.bundle-6 { animation: ambient-drift 28s linear infinite reverse; }
 
 @media (prefers-reduced-motion: reduce) {
     .track { animation: none !important; }
@@ -848,15 +850,15 @@ body.spotlight-on #spotlight { opacity: 1; }
 
 .scene-3d {
     position: relative;
-    perspective: 70em;
-    perspective-origin: 50% 45%;
+    perspective: 28em;          /* tight perspective — we are inside the ring */
+    perspective-origin: 50% 50%;
     height: 460px;
     margin: var(--s-6) 0;
     mask: linear-gradient(90deg, transparent, red 10% 90%, transparent);
     -webkit-mask: linear-gradient(90deg, transparent, red 10% 90%, transparent);
     cursor: grab;
     user-select: none;
-    touch-action: pan-y;        /* allow vertical page scroll, capture horizontal */
+    touch-action: pan-y;
 }
 .scene-3d:active, .scene-3d.dragging { cursor: grabbing; }
 .scene-3d:focus { outline: none; }
@@ -874,11 +876,11 @@ body.spotlight-on #spotlight { opacity: 1; }
     will-change: transform;
 }
 .card-3d {
-    --w: 22em;
+    --w: 18em;
     --ba: calc(360deg / var(--n));
     position: absolute;
     top: -200px;
-    left: -176px;
+    left: -144px;
     width: var(--w);
     height: 380px;
     border-radius: var(--r-lg);
@@ -888,11 +890,13 @@ body.spotlight-on #spotlight { opacity: 1; }
     backface-visibility: hidden;
     transform-style: preserve-3d;
     padding: var(--s-6);
+    /* Reverse-carousel: cards orbit at radius R then turn 180° to face the
+       centre. We sit at the centre — cards rotate around us. */
     transform:
         rotateY(calc(var(--i) * var(--ba)))
-        translateZ(calc((var(--w) / 2) / tan(calc(var(--ba) / 2)) + 4em));
+        translateZ(calc((var(--w) / 2) / tan(calc(var(--ba) / 2)) + 4em))
+        rotateY(180deg);
     transition: box-shadow 0.4s var(--ease-cinema);
-    /* Soft floor reflection under each card */
 }
 .card-3d::after {
     content: '';
@@ -984,6 +988,72 @@ body.spotlight-on #spotlight { opacity: 1; }
     font-weight: 700;
     text-align: right;
     font-size: 0.85rem;
+}
+
+/* ============================================================================
+   WORLD MAP — D3 choropleth, hover for country detail
+   ============================================================================ */
+.world-map-frame {
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+}
+#worldMap {
+    width: 100%;
+    height: 480px;
+}
+#worldMap svg { display: block; width: 100%; height: 100%; background: var(--c-surface); }
+#worldMap path.country {
+    stroke: var(--c-surface);
+    stroke-width: 0.5;
+    transition: filter 0.2s var(--ease-cinema);
+    cursor: default;
+}
+#worldMap path.country:hover { filter: brightness(0.92) saturate(1.15); stroke-width: 1.5; stroke: var(--c-ink); }
+#worldMap path.country.no-data { fill: var(--c-surface-2); }
+.map-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: var(--c-ink);
+    color: #fff;
+    padding: var(--s-3) var(--s-4);
+    border-radius: var(--r-sm);
+    font-size: 0.85rem;
+    line-height: 1.4;
+    opacity: 0;
+    transition: opacity 0.15s var(--ease-cinema);
+    box-shadow: var(--shadow-lg);
+    z-index: 10;
+    max-width: 240px;
+}
+.map-tooltip.show { opacity: 1; }
+.map-tooltip .name { font-family: var(--f-display); font-weight: 700; font-size: 0.95rem; margin-bottom: 4px; }
+.map-tooltip .val  { font-family: var(--f-mono); color: var(--c-pitch-bright); font-weight: 700; }
+.map-tooltip .sub  { color: rgba(255,255,255,0.7); font-size: 0.78rem; margin-top: 4px; }
+
+/* Map legend with colour scale */
+.map-scale {
+    position: absolute;
+    bottom: var(--s-4); left: var(--s-4);
+    background: var(--glass-white-md);
+    backdrop-filter: var(--blur-sm);
+    border-radius: var(--r-sm);
+    padding: var(--s-3);
+    font-size: 0.75rem;
+    color: var(--c-ink);
+    box-shadow: var(--shadow-sm);
+}
+.map-scale .scale-bar {
+    width: 180px; height: 8px;
+    border-radius: 4px;
+    margin: 6px 0;
+    background: linear-gradient(90deg, #e8f5ee, #a5d4b8, #3da66c, #0d7c47, #075a32);
+}
+.map-scale .scale-labels {
+    display: flex; justify-content: space-between;
+    font-family: var(--f-mono);
+    font-size: 0.7rem;
+    color: var(--c-muted);
 }
 
 /* Top 5 legend with CSS map pin pulse (pattern micro/001) */

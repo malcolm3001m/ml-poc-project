@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<title>Valeur d'apogée · Preuve de concept ML · Malcolm Morgan</title>
-<meta name="description" content="DAT0424 PoC ML — prédire la valeur de marché à l'apogée des joueurs de football à partir de données biographiques et de performance. CatBoost, R² 0.798." />
+<title>Valeur au pic · Preuve de concept ML · Malcolm Morgan</title>
+<meta name="description" content="DAT0424 PoC ML — prédire la valeur maximale de marché des joueurs de football à partir de données biographiques et de performance. CatBoost, R² 0.798." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" href="style.css" />
@@ -110,11 +110,11 @@
         </h1>
         <p class="hero-lede">
             On ne prédit pas la valeur d'un joueur <em>aujourd'hui</em>. On prédit la
-            <strong>valeur de marché maximale qu'il atteindra durant sa carrière</strong>. Le pari :
+            <strong>valeur maximale de marché qu'il atteindra durant sa carrière</strong>. Le pari :
             un club peut signer un joueur de 19 ans pour 5 M€ dont le pic prédit est de 40 M€,
             et empocher la différence si la prédiction se vérifie. Cette preuve de concept
-            pose la question : <strong>peut-on prédire ce pic de carrière à partir de la
-            biographie seule ?</strong>
+            pose la question : <strong>peut-on prédire ce pic à partir du profil et du
+            parcours d'un joueur ?</strong>
         </p>
 
         <div class="stat-grid">
@@ -126,10 +126,6 @@
         </div>
     </div>
 
-    <div class="scroll-cue" aria-hidden="true">
-        <span>descendre</span>
-        <div class="scroll-line"></div>
-    </div>
 </section>
 
 
@@ -137,10 +133,10 @@
 <section id="data" class="content" data-section="data">
     <div class="kicker">Étape 1 sur 3 · <span class="scramble" data-text="Les données">Les données</span></div>
     <h2 class="section-q">Avons-nous assez de signal pour prédire cela ?</h2>
-    <p class="section-a">39 226 joueurs avec une valeur d'apogée enregistrée et 34 variables construites. Regardons.</p>
+    <p class="section-a">39 226 joueurs avec une valeur au pic enregistrée et 34 variables construites. Regardons.</p>
 
     <div class="chart-block reveal">
-        <h3 class="chart-q"><span class="chart-num">01</span> Comment la valeur d'apogée est-elle distribuée dans la population ?</h3>
+        <h3 class="chart-q"><span class="chart-num">01</span> Comment la valeur au pic est-elle distribuée dans la population ?</h3>
         <p class="chart-caption">
             <strong>Problème :</strong> la cible a une queue droite brutale. Joueur médian ≈ 500 k€ ;
             tier supérieur 150 M€+. Le modèle doit gérer un écart de valeur de 300×.
@@ -152,17 +148,18 @@
         <h3 class="chart-q"><span class="chart-num">02</span> D'où viennent les joueurs les plus valorisés ?</h3>
         <p class="chart-caption">
             Les données pondérées sont meilleures — au lieu du nombre de joueurs (qui ne ferait que
-            cartographier la population), on montre la valeur d'apogée médiane par pays avec ≥ 50 joueurs.
+            cartographier la population), on montre la valeur au pic médiane par pays avec ≥ 50 joueurs.
             Cela isole la densité de talent de la taille de la population.
         </p>
-        <div class="chart-frame countries-frame">
-            <div id="countriesBars"></div>
+        <div class="chart-frame world-map-frame">
+            <div id="worldMap"></div>
+            <div id="mapTooltip" class="map-tooltip" aria-hidden="true"></div>
         </div>
         <div class="map-legend" id="top5Legend"></div>
     </div>
 
     <div class="chart-block reveal">
-        <h3 class="chart-q"><span class="chart-num">03</span> Le poste prédit-il la valeur d'apogée ?</h3>
+        <h3 class="chart-q"><span class="chart-num">03</span> Le poste prédit-il la valeur au pic ?</h3>
         <p class="chart-caption">
             Oui — mais pas autant qu'on pourrait le penser. Attaquants et milieux tirent plus haut ;
             gardiens plus bas. Mais chaque poste a son joueur d'exception à 100 M€+.
@@ -195,26 +192,25 @@
 
     <h3 class="chart-q reveal">
         <span class="chart-num">04</span> Quatre modèles, quatre philosophies
-        <span class="pill dark mono">3D · GLISSER OU SURVOLER POUR PAUSER</span>
     </h3>
 
     <div class="scene-3d">
-        <div class="a3d" style="--n: 4;" id="modelCarousel">
+        <div class="a3d" style="--n: 8;" id="modelCarousel">
             <article class="card-3d t1" style="--i: 0;">
                 <div class="badge-num">01 · RÉFÉRENCE DE BASE</div>
-                <div class="card-3d-title">🌱 Arbre de décision</div>
+                <div class="card-3d-title">🌱 Decision Tree</div>
                 <p class="card-3d-body">
-                    La réponse la plus simple possible. Un arbre, qui divise les variables de manière
-                    gloutonne, profondeur max 10. Interprétable mais peu sophistiqué.
+                    La réponse la plus simple possible. Un arbre, qui divise les variables
+                    de manière gloutonne, profondeur max 10. Interprétable mais peu sophistiqué.
                 </p>
                 <div class="card-3d-foot"><span>R² 0,643</span><span>MAE 1,99 M€</span></div>
             </article>
             <article class="card-3d t2" style="--i: 1;">
                 <div class="badge-num">02 · ENSEMBLE</div>
-                <div class="card-3d-title">🌲 Forêt aléatoire</div>
+                <div class="card-3d-title">🌲 Random Forest</div>
                 <p class="card-3d-body">
-                    Demander à 140 arbres et voter. Le moyennage annule les erreurs individuelles.
-                    Robuste, mais les arbres profonds surajustent.
+                    Demander à 140 arbres et voter. Le moyennage annule les erreurs
+                    individuelles. Robuste, mais les arbres profonds surajustent.
                 </p>
                 <div class="card-3d-foot"><span>R² 0,716</span><span>MAE 1,73 M€</span></div>
             </article>
@@ -222,8 +218,9 @@
                 <div class="badge-num">03 · GRADIENT BOOSTING</div>
                 <div class="card-3d-title">🚀 XGBoost</div>
                 <p class="card-3d-body">
-                    350 petits arbres, chacun corrigeant les résidus du précédent. Solide, mais les
-                    variables catégorielles sont encodées en entiers — traitées comme des ordinaux.
+                    350 petits arbres, chacun corrigeant les résidus du précédent. Solide,
+                    mais les variables catégorielles sont encodées en entiers — traitées
+                    comme un ordre.
                 </p>
                 <div class="card-3d-foot"><span>R² 0,759</span><span>MAE 1,63 M€</span></div>
             </article>
@@ -231,9 +228,48 @@
                 <div class="badge-num">04 · GAGNANT</div>
                 <div class="card-3d-title">🏆 CatBoost</div>
                 <p class="card-3d-body">
-                    <strong>Gestion native des catégorielles</strong> — sans encodage trompeur.
-                    Le boosting ordonné prévient la fuite de la cible. Écart train/test seulement
-                    <strong>+0,007</strong>.
+                    <strong>Gestion native des catégorielles</strong> — sans encodage
+                    trompeur. Le boosting ordonné prévient la fuite de la cible. Écart
+                    train/test seulement <strong>+0,007</strong>.
+                </p>
+                <div class="card-3d-foot"><span>R² 0,798</span><span>MAE 1,53 M€</span></div>
+            </article>
+            <!-- Duplicated cards to give the ring a smoother 8-stop carousel feel -->
+            <article class="card-3d t1" style="--i: 4;">
+                <div class="badge-num">01 · RÉFÉRENCE DE BASE</div>
+                <div class="card-3d-title">🌱 Decision Tree</div>
+                <p class="card-3d-body">
+                    La réponse la plus simple possible. Un arbre, qui divise les variables
+                    de manière gloutonne, profondeur max 10. Interprétable mais peu sophistiqué.
+                </p>
+                <div class="card-3d-foot"><span>R² 0,643</span><span>MAE 1,99 M€</span></div>
+            </article>
+            <article class="card-3d t2" style="--i: 5;">
+                <div class="badge-num">02 · ENSEMBLE</div>
+                <div class="card-3d-title">🌲 Random Forest</div>
+                <p class="card-3d-body">
+                    Demander à 140 arbres et voter. Le moyennage annule les erreurs
+                    individuelles. Robuste, mais les arbres profonds surajustent.
+                </p>
+                <div class="card-3d-foot"><span>R² 0,716</span><span>MAE 1,73 M€</span></div>
+            </article>
+            <article class="card-3d t2" style="--i: 6;">
+                <div class="badge-num">03 · GRADIENT BOOSTING</div>
+                <div class="card-3d-title">🚀 XGBoost</div>
+                <p class="card-3d-body">
+                    350 petits arbres, chacun corrigeant les résidus du précédent. Solide,
+                    mais les variables catégorielles sont encodées en entiers — traitées
+                    comme un ordre.
+                </p>
+                <div class="card-3d-foot"><span>R² 0,759</span><span>MAE 1,63 M€</span></div>
+            </article>
+            <article class="card-3d t3" style="--i: 7;">
+                <div class="badge-num">04 · GAGNANT</div>
+                <div class="card-3d-title">🏆 CatBoost</div>
+                <p class="card-3d-body">
+                    <strong>Gestion native des catégorielles</strong> — sans encodage
+                    trompeur. Le boosting ordonné prévient la fuite de la cible. Écart
+                    train/test seulement <strong>+0,007</strong>.
                 </p>
                 <div class="card-3d-foot"><span>R² 0,798</span><span>MAE 1,53 M€</span></div>
             </article>
@@ -261,7 +297,7 @@
         <div class="bignum featured">
             <div class="lbl">CatBoost · Le gagnant</div>
             <div class="num" data-count="0.798" data-decimals="3">0.000</div>
-            <div class="sub">R² test — explique 79,8% de la variance de la valeur d'apogée</div>
+            <div class="sub">R² test — explique 79,8% de la variance de la valeur au pic</div>
         </div>
         <div class="bignum compact">
             <div class="lbl">Erreur moyenne</div>
@@ -299,7 +335,7 @@
     <div class="chart-frame reveal" data-chart="cvBars"></div>
 
     <h3 class="chart-q reveal"><span class="chart-num">08</span> Qu'a réellement appris le modèle ?</h3>
-    <p class="chart-caption reveal">Les variables que CatBoost a trouvées les plus prédictives de la valeur d'apogée.</p>
+    <p class="chart-caption reveal">Les variables que CatBoost a trouvées les plus prédictives de la valeur au pic.</p>
     <div class="chart-frame reveal" data-chart="featureImportance"></div>
 </section>
 
@@ -356,7 +392,7 @@
         <div class="opportunities-head">
             <h3 class="opportunities-title">💎 Top 10 opportunités de marché</h3>
             <p class="opportunities-sub">
-                Joueurs à l'apogée, ≤ 28 ans, valeur actuelle ≥ 5 M€, pic prédit
+                Joueurs au pic actuel, ≤ 28 ans, valeur actuelle ≥ 5 M€, pic prédit
                 au-dessus du prix actuel — classés par gain absolu (€). Cliquez pour analyser.
             </p>
         </div>
@@ -420,7 +456,7 @@
             <div class="stack-inner">
                 <span class="pill amber">BRUIT DE VARIABLE</span>
                 <span class="stack-num">02</span>
-                <h3><code>age</code> est l'âge actuel, pas l'âge à l'apogée</h3>
+                <h3><code>age</code> est l'âge actuel, pas l'âge au pic</h3>
                 <p>
                     Aujourd'hui moins la date de naissance. Pour les joueurs retraités, c'est leur âge
                     actuel. Cela ajoute du bruit ; ne biaise pas systématiquement le résultat.
@@ -481,7 +517,7 @@
         <div class="brutal-phase pitch reveal">
             <div class="brutal-num">01</div>
             <div class="brutal-content">
-                <h3 class="brutal-title scramble-hover" data-text="Reformulation à l'âge d'apogée">Reformulation à l'âge d'apogée
+                <h3 class="brutal-title scramble-hover" data-text="Reformulation à l'âge-au-pic">Reformulation à l'âge-au-pic
                     <span class="pill amber">résout les limites #1 + #2</span>
                 </h3>
                 <p class="brutal-body">
@@ -561,6 +597,8 @@
 
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/d3@7/dist/d3.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/topojson-client@3/dist/topojson-client.min.js"></script>
 <script src="data.js"></script>
 <script src="app.js"></script>
 </body>

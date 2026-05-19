@@ -135,6 +135,31 @@ def main() -> None:
     rng = np.random.default_rng(42)
     random_test = rng.choice(test_pool, size=min(40, len(test_pool)), replace=False).tolist()
 
+    # Also bake the top-N by current value — guarantees every well-known player
+    # (Antony, Pulisic, Rashford, Sancho etc.) is searchable in the demo
+    print("Baking top 300 players by current valuation...")
+    top_by_value = (
+        latest_by_pid.dropna()
+        .sort_values(ascending=False)
+        .head(500)
+        .index.tolist()
+    )
+    pid_to_row = players.set_index("player_id")
+    top_idx = []
+    for pid in top_by_value:
+        if pid in pid_to_row.index:
+            # pid_to_row.loc[pid] could be a Series or DataFrame if duplicates
+            row_idx = pid_to_row.index.get_indexer([pid])[0]
+            # Get the original index position in the players DataFrame
+            orig_idx_candidates = players.index[players["player_id"] == pid].tolist()
+            for oi in orig_idx_candidates:
+                if oi in X_all.index:
+                    top_idx.append(int(oi))
+                    break
+        if len(top_idx) >= 300:
+            break
+    print(f"  matched {len(top_idx)} top-value players to the X_all index")
+
     # ── Compute top ROI opportunities on the FULL test set ───────────────
     # Filters: at-peak (current >= 85% of highest_recorded), age <= 28,
     # current >= €5M (real scout targets), model prediction > current.
@@ -162,8 +187,8 @@ def main() -> None:
     print(f"  found {len(opportunities)} opportunities · keeping top {len(top_opps)}")
     opp_idx = [o[0] for o in top_opps]
 
-    selected = list(dict.fromkeys(famous_idx + [int(i) for i in random_test] + opp_idx))
-    print(f"  picked {len(selected)} players ({len(famous_idx)} famous + {len(random_test)} random + {len(top_opps)} top ROI)")
+    selected = list(dict.fromkeys(famous_idx + [int(i) for i in random_test] + opp_idx + top_idx))
+    print(f"  picked {len(selected)} players ({len(famous_idx)} famous + {len(random_test)} random + {len(top_opps)} top ROI + {len(top_idx)} top-value)")
 
     X_selected = X_all.loc[selected]
     preds = {}
