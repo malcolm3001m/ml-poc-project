@@ -35,6 +35,8 @@ TARGET = "highest_market_value_in_eur"
 def _load_players() -> pd.DataFrame:
     players = pd.read_csv(DATA_DIR / "players.csv", low_memory=False)
     players["date_of_birth"] = pd.to_datetime(players["date_of_birth"], errors="coerce")
+    # Caveat: this is current age, not age at peak. For retired players the feature is
+    # post-peak. Documented in the app's Limitations section + Defence FAQ.
     players["age"] = (pd.Timestamp.today() - players["date_of_birth"]).dt.days / 365.25
     return players
 

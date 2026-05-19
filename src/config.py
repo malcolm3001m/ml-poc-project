@@ -33,17 +33,17 @@ STREAMLIT_PORT = 8501
 MODELS = {
     "decision_tree": {
         "name": "Decision Tree",
-        "description": "Single tree baseline trained on a log transformed peak value target.",
+        "description": "Single tree baseline; log1p-transformed target via TransformedTargetRegressor.",
         "path": MODELS_DIR / "decision_tree.joblib",
     },
     "random_forest": {
         "name": "Random Forest",
-        "description": "Tree ensemble trained to capture non linear player value patterns.",
+        "description": "Tree ensemble; log1p-transformed target via TransformedTargetRegressor.",
         "path": MODELS_DIR / "random_forest.joblib",
     },
     "xgboost_regressor": {
         "name": "XGBoost Regressor",
-        "description": "Gradient boosted tree model trained for peak market value prediction.",
+        "description": "Gradient-boosted trees; log1p-transformed target via TransformedTargetRegressor.",
         "path": MODELS_DIR / "xgboost_regressor.joblib",
     },
 }
